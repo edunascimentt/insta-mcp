@@ -10,8 +10,9 @@ The agency runs a **central Business Manager**. Each client BM shares its Page +
 
 Uses the **Facebook Graph API**. The central token walks the Pages it can access (`/me/accounts` → each Page's linked `instagram_business_account`, including partner-shared ones) and builds a registry of every account (username + ig id). Per-account tools take an `account` argument; `list_accounts` shows them all.
 
-## Tools
+## Tools (32)
 
+**Core**
 | Tool | What it does |
 |------|--------------|
 | `list_accounts` | Every IG account across all client BMs (username, id, followers, BM label) |
@@ -24,7 +25,43 @@ Uses the **Facebook Graph API**. The central token walks the Pages it can access
 | `publish_photo` / `publish_reel` / `publish_carousel` | Post to one account |
 | `reply_to_comment` | Reply to a comment |
 
-Per-account tools accept `account` (username or id). Media-level tools (`get_media_insights`, `get_media_comments`, `reply_to_comment`) also accept `account` so the server knows which BM's token to use — required when more than one BM is configured.
+**Agency reports** (combine many calls)
+| Tool | What it does |
+|------|--------------|
+| `bulk_insights` | Insights for EVERY managed account at once |
+| `compare_accounts` | Side-by-side followers / reach / interactions / engagement rate |
+| `top_posts` | Best posts in a window (by engagement / likes / comments) |
+| `engagement_rate` | Avg engagement rate over a window |
+| `best_time_to_post` | Best hours from online-followers data |
+| `weekly_report` | One-shot client report: profile + insights + ER + top posts |
+
+**Deeper insights**
+| Tool | What it does |
+|------|--------------|
+| `get_follower_growth` | Daily follower-count series |
+| `get_reel_insights` | Reel reach/views + avg & total watch time |
+| `get_story_insights` | Story reach, replies, navigation (query while live) |
+| `get_profile_activity` | Taps on profile links |
+
+**Competitor / market**
+| Tool | What it does |
+|------|--------------|
+| `business_discovery` | Public profile data of any business/creator by username |
+| `business_discovery_media` | A competitor's recent public posts |
+| `search_hashtag` | Resolve a hashtag to its id |
+| `get_hashtag_media` | Top / recent media for a hashtag |
+
+**Moderation + publishing+**
+| Tool | What it does |
+|------|--------------|
+| `publish_story` | Post a Story (photo or video) |
+| `hide_comment` / `delete_comment` | Moderate comments |
+| `toggle_comments` | Enable/disable comments on a post |
+| `get_tagged_media` | Posts where the account was @tagged |
+| `get_active_stories` | Currently-live stories |
+| `get_publishing_limit` | Remaining posts in the 24h quota |
+
+Per-account tools accept `account` (username or id). Media-level tools also accept `account` so the server knows which BM's token to use — required when more than one BM is configured. Competitor/hashtag tools use one of *your* accounts to make the query.
 
 ## Requirements (Meta's, not optional)
 

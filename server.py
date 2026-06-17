@@ -4,45 +4,20 @@ Exposes Instagram Graph API insights + publishing as MCP tools over stdio,
 across every Instagram account reachable by a set of Business Manager System
 User tokens (one per client BM). Calls auto-route to the owning token.
 
+Base tools live here; extended tools (reports, competitor, deeper insights,
+moderation) live in tools_extra.py and register on import.
+
 Per-account tools take an `account` argument (username or ig id). Call
 `list_accounts` first to see what's available. If IG_DEFAULT_ACCOUNT is set,
-`account` may be omitted to use it.
-
-Tools degrade gracefully: missing/expired token or unknown account returns a
-clear, actionable error instead of crashing.
+`account` may be omitted to use it. Tools degrade gracefully: missing/expired
+token or unknown account returns a clear, actionable error.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from mcp.server.fastmcp import FastMCP
-
-import config
-from instagram_client import InstagramAPIError, InstagramClient
-
-mcp = FastMCP("instagram")
-
-_client: InstagramClient | None = None
-
-
-def client() -> InstagramClient:
-    global _client
-    if _client is None:
-        _client = InstagramClient(config.get_tokens())
-    return _client
-
-
-def _err(exc: InstagramAPIError) -> dict[str, Any]:
-    return {"ok": False, "error": exc.as_text(), "code": exc.code}
-
-
-async def _resolve(account: str | None) -> tuple[str, str]:
-    """Resolve account (or IG_DEFAULT_ACCOUNT) to (ig_id, token)."""
-    return await client().resolve_account(account or config.get_default_account())
-
-
-_TOTAL_VALUE_METRICS = ["reach", "views", "total_interactions", "accounts_engaged"]
+from core import TOTAL_VALUE_METRICS, InstagramAPIError, client, config, err, mcp, resolve, token_for
 
 
 # ---------------------------------------------------------------------------
@@ -62,7 +37,7 @@ async def list_accounts(refresh: bool = False) -> dict[str, Any]:
         accounts = await client().list_accounts(refresh=refresh)
         return {"ok": True, "count": len([a for a in accounts if "ig_id" in a]), "accounts": accounts}
     except InstagramAPIError as exc:
-        return _err(exc)
+        return err(exc)
 
 
 # ---------------------------------------------------------------------------
@@ -74,7 +49,7 @@ async def list_accounts(refresh: bool = False) -> dict[str, Any]:
 async def get_account_info(account: str | None = None) -> dict[str, Any]:
     """Get an account's profile and counts. `account` = username or ig id."""
     try:
-        ig_id, token = await _resolve(account)
+        ig_id, token = await resolve(account)
         fields = (
             "id,username,name,biography,followers_count,follows_count,"
             "media_count,profile_picture_url,website"
@@ -82,7 +57,7 @@ async def get_account_info(account: str | None = None) -> dict[str, Any]:
         data = await client().get(ig_id, token, {"fields": fields})
         return {"ok": True, "account": data}
     except InstagramAPIError as exc:
-        return _err(exc)
+        return err(exc)
 
 
 @mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True})
@@ -93,9 +68,9 @@ async def get_account_insights(account: str | None = None, days: int = 7) -> dic
     """
     days = max(1, min(int(days), 30))
     try:
-        ig_id, token = await _resolve(account)
+        ig_id, token = await resolve(account)
         params = {
-            "metric": ",".join(_TOTAL_VALUE_METRICS),
+            "metric": ",".join(TOTAL_VALUE_METRICS),
             "metric_type": "total_value",
             "period": "day",
         }
@@ -105,7 +80,7 @@ async def get_account_insights(account: str | None = None, days: int = 7) -> dic
             results[item.get("name")] = item.get("total_value", {}).get("value")
         return {"ok": True, "account": account, "period_days": days, "insights": results}
     except InstagramAPIError as exc:
-        return _err(exc)
+        return err(exc)
 
 
 @mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True})
@@ -119,7 +94,7 @@ async def get_audience_demographics(
     if breakdown not in valid:
         return {"ok": False, "error": f"breakdown must be one of {sorted(valid)}"}
     try:
-        ig_id, token = await _resolve(account)
+        ig_id, token = await resolve(account)
         params = {
             "metric": "follower_demographics",
             "period": "lifetime",
@@ -135,7 +110,7 @@ async def get_audience_demographics(
                     out[key] = res.get("value")
         return {"ok": True, "account": account, "breakdown": breakdown, "demographics": out}
     except InstagramAPIError as exc:
-        return _err(exc)
+        return err(exc)
 
 
 @mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True})
@@ -145,7 +120,7 @@ async def list_recent_media(account: str | None = None, limit: int = 12) -> dict
     """
     limit = max(1, min(int(limit), 50))
     try:
-        ig_id, token = await _resolve(account)
+        ig_id, token = await resolve(account)
         fields = (
             "id,caption,media_type,media_url,permalink,timestamp,"
             "like_count,comments_count"
@@ -153,7 +128,7 @@ async def list_recent_media(account: str | None = None, limit: int = 12) -> dict
         data = await client().get(f"{ig_id}/media", token, {"fields": fields, "limit": limit})
         return {"ok": True, "account": account, "media": data.get("data", [])}
     except InstagramAPIError as exc:
-        return _err(exc)
+        return err(exc)
 
 
 @mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True})
@@ -162,7 +137,7 @@ async def get_media_insights(media_id: str, account: str | None = None) -> dict[
     Pass `account` (the one the media came from) when multiple BMs are configured.
     """
     try:
-        token = await client().token_for(account or config.get_default_account())
+        token = await token_for(account)
         metrics = "reach,likes,comments,saved,shares,total_interactions,views"
         data = await client().get(f"{media_id}/insights", token, {"metric": metrics})
         results = {}
@@ -172,7 +147,7 @@ async def get_media_insights(media_id: str, account: str | None = None) -> dict[
             results[item.get("name")] = value
         return {"ok": True, "media_id": media_id, "insights": results}
     except InstagramAPIError as exc:
-        return _err(exc)
+        return err(exc)
 
 
 @mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True})
@@ -184,12 +159,12 @@ async def get_media_comments(
     """
     limit = max(1, min(int(limit), 50))
     try:
-        token = await client().token_for(account or config.get_default_account())
+        token = await token_for(account)
         fields = "id,text,username,timestamp,like_count"
         data = await client().get(f"{media_id}/comments", token, {"fields": fields, "limit": limit})
         return {"ok": True, "comments": data.get("data", [])}
     except InstagramAPIError as exc:
-        return _err(exc)
+        return err(exc)
 
 
 # ---------------------------------------------------------------------------
@@ -203,7 +178,7 @@ async def publish_photo(
 ) -> dict[str, Any]:
     """Publish a single photo to `account`. `image_url` = public HTTPS JPEG."""
     try:
-        ig_id, token = await _resolve(account)
+        ig_id, token = await resolve(account)
         container = await client().post(
             f"{ig_id}/media", token, {"image_url": image_url, "caption": caption}
         )
@@ -212,7 +187,7 @@ async def publish_photo(
         )
         return {"ok": True, "account": account, "media_id": published.get("id")}
     except InstagramAPIError as exc:
-        return _err(exc)
+        return err(exc)
 
 
 @mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": True})
@@ -221,7 +196,7 @@ async def publish_reel(
 ) -> dict[str, Any]:
     """Publish a Reel to `account`. `video_url` = public HTTPS MP4."""
     try:
-        ig_id, token = await _resolve(account)
+        ig_id, token = await resolve(account)
         container = await client().post(
             f"{ig_id}/media",
             token,
@@ -234,7 +209,7 @@ async def publish_reel(
         )
         return {"ok": True, "account": account, "media_id": published.get("id")}
     except InstagramAPIError as exc:
-        return _err(exc)
+        return err(exc)
 
 
 @mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": True})
@@ -245,7 +220,7 @@ async def publish_carousel(
     if not 2 <= len(image_urls) <= 10:
         return {"ok": False, "error": "carousel needs between 2 and 10 image_urls"}
     try:
-        ig_id, token = await _resolve(account)
+        ig_id, token = await resolve(account)
         child_ids = []
         for url in image_urls:
             child = await client().post(
@@ -262,7 +237,7 @@ async def publish_carousel(
         )
         return {"ok": True, "account": account, "media_id": published.get("id")}
     except InstagramAPIError as exc:
-        return _err(exc)
+        return err(exc)
 
 
 @mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": True})
@@ -273,11 +248,15 @@ async def reply_to_comment(
     if not message.strip():
         return {"ok": False, "error": "message cannot be empty"}
     try:
-        token = await client().token_for(account or config.get_default_account())
+        token = await token_for(account)
         data = await client().post(f"{comment_id}/replies", token, {"message": message})
         return {"ok": True, "reply_id": data.get("id")}
     except InstagramAPIError as exc:
-        return _err(exc)
+        return err(exc)
+
+
+# Register extended tools (reports, competitor, deeper insights, moderation).
+import tools_extra  # noqa: E402,F401
 
 
 if __name__ == "__main__":

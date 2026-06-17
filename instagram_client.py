@@ -112,6 +112,9 @@ class InstagramClient:
     async def post(self, path: str, token: str, data: dict[str, Any]) -> dict[str, Any]:
         return await self._request("POST", path, token, data=data)
 
+    async def delete(self, path: str, token: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+        return await self._request("DELETE", path, token, params=params)
+
     # --- Discovery across all tokens ---------------------------------------
 
     async def _accounts_for_token(self, token: str) -> list[dict[str, Any]]:
@@ -224,6 +227,26 @@ class InstagramClient:
             "Multiple BMs configured — can't tell which client this media belongs to.",
             hint="Pass `account` (the username/id the media came from).",
         )
+
+    async def paginate(
+        self, path: str, token: str, params: dict[str, Any], *, max_items: int = 200
+    ) -> list[dict[str, Any]]:
+        """Follow paging.next cursors on a node, up to max_items."""
+        items: list[dict[str, Any]] = []
+        next_params: dict[str, Any] = dict(params)
+        node = path
+        while node:
+            page = await self._request("GET", node, token, params=next_params)
+            items.extend(page.get("data", []))
+            if len(items) >= max_items:
+                return items[:max_items]
+            paging = page.get("paging", {})
+            after = paging.get("cursors", {}).get("after")
+            if paging.get("next") and after:
+                next_params = {**params, "after": after}
+            else:
+                node = None
+        return items
 
     # --- Publishing helper --------------------------------------------------
 
