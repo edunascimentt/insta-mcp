@@ -255,8 +255,10 @@ async def reply_to_comment(
         return err(exc)
 
 
-# Register extended tools (reports, competitor, deeper insights, moderation).
+# Register extended tools (reports, competitor, deeper insights, moderation)
+# and DM tools. Imported for their @mcp.tool side effects.
 import tools_extra  # noqa: E402,F401
+import tools_dms  # noqa: E402,F401
 
 
 if __name__ == "__main__":

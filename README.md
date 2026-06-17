@@ -10,7 +10,7 @@ The agency runs a **central Business Manager**. Each client BM shares its Page +
 
 Uses the **Facebook Graph API**. The central token walks the Pages it can access (`/me/accounts` → each Page's linked `instagram_business_account`, including partner-shared ones) and builds a registry of every account (username + ig id). Per-account tools take an `account` argument; `list_accounts` shows them all.
 
-## Tools (32)
+## Tools (35)
 
 **Core**
 | Tool | What it does |
@@ -60,6 +60,13 @@ Uses the **Facebook Graph API**. The central token walks the Pages it can access
 | `get_tagged_media` | Posts where the account was @tagged |
 | `get_active_stories` | Currently-live stories |
 | `get_publishing_limit` | Remaining posts in the 24h quota |
+
+**Direct messages** (needs `instagram_manage_messages` scope)
+| Tool | What it does |
+|------|--------------|
+| `list_dm_conversations` | Recent DM threads (id, participants, last update) |
+| `get_dm_messages` | Read messages in a thread |
+| `send_dm` | Send a DM (subject to Meta's 24h messaging window) |
 
 Per-account tools accept `account` (username or id). Media-level tools also accept `account` so the server knows which BM's token to use — required when more than one BM is configured. Competitor/hashtag tools use one of *your* accounts to make the query.
 
