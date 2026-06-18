@@ -10,7 +10,7 @@ The agency runs a **central Business Manager**. Each client BM shares its Page +
 
 Uses the **Facebook Graph API**. The central token walks the Pages it can access (`/me/accounts` → each Page's linked `instagram_business_account`, including partner-shared ones) and builds a registry of every account (username + ig id). Per-account tools take an `account` argument; `list_accounts` shows them all.
 
-## Tools (35)
+## Tools (39)
 
 **Core**
 | Tool | What it does |
@@ -67,6 +67,14 @@ Uses the **Facebook Graph API**. The central token walks the Pages it can access
 | `list_dm_conversations` | Recent DM threads (id, participants, last update) |
 | `get_dm_messages` | Read messages in a thread |
 | `send_dm` | Send a DM (subject to Meta's 24h messaging window) |
+
+**Scheduling** (Instagram has no native API scheduling — a local worker publishes the queue)
+| Tool | What it does |
+|------|--------------|
+| `schedule_post` | Queue a photo/reel/carousel/story for a future time (`publish_at` ISO-8601) |
+| `list_scheduled` | List queued posts (filter by status / account) |
+| `cancel_scheduled` | Cancel a pending job by id |
+| `run_due_posts` | Publish any due posts now, on demand |
 
 Per-account tools accept `account` (username or id). Media-level tools also accept `account` so the server knows which BM's token to use — required when more than one BM is configured. Competitor/hashtag tools use one of *your* accounts to make the query.
 
@@ -150,6 +158,29 @@ Restart, then: *"List my Instagram accounts, then last week's insights for @domi
 > Tip: if you used a venv, point `command` at the venv's python (e.g. `/Users/you/insta-mcp/.venv/bin/python`) so the deps are found.
 
 ---
+
+## Scheduling posts (the worker)
+Instagram's API can't schedule posts (only Facebook Pages can), so we keep a local queue and a worker publishes each post at its time. `schedule_post` adds to the queue; the worker (`scheduler.py`) must be running for posts to actually go out.
+
+`schedule_post` writes to `scheduled.json` (gitignored). The worker reads it and publishes due jobs using the same tokens as the server. Two ways to run it:
+
+**Once (for cron / Task Scheduler) — recommended:**
+```bash
+python scheduler.py --once    # publish anything due now, then exit
+```
+**macOS / Linux cron**, every minute:
+```bash
+crontab -e
+# add (use absolute paths):
+* * * * * cd /Users/you/insta-mcp && /usr/bin/python3 scheduler.py --once >> scheduler.log 2>&1
+```
+**Windows Task Scheduler:** new task → trigger *every 1 minute* → action `python C:\Users\eduardo\Desktop\insta-mcp\scheduler.py --once`.
+
+**Always-on (no cron):**
+```bash
+python scheduler.py --watch   # loops, checks every 60s; leave it running
+```
+No worker running? You can still flush due posts manually from Claude with `run_due_posts`. Times are ISO-8601; pass a timezone (`2026-06-20T14:00:00-03:00`) or `Z` for UTC — naive times are treated as UTC.
 
 ## Multiple tokens (fallback)
 If you ever can't use Partners for some client, you can run a separate token for that BM. Put several entries in `tokens.json`:
