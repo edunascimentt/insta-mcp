@@ -159,6 +159,14 @@ Restart, then: *"List my Instagram accounts, then last week's insights for @domi
 
 ---
 
+## Updating (new tools)
+New tools ship as code — no reinstall, the Claude config never changes (it just runs `server.py`). On each machine:
+```bash
+python update.py        # Windows
+python3 update.py       # macOS/Linux
+```
+or double-click `update.sh` (mac/Linux) / run `update.ps1` (Windows). It does `git pull --ff-only` + installs any new deps, then tells you to **quit and reopen Claude** so it reloads the MCP. Your `tokens.json` / `.env` / `scheduled.json` are gitignored, so a pull never touches them.
+
 ## Scheduling posts (the worker)
 Instagram's API can't schedule posts (only Facebook Pages can), so we keep a local queue and a worker publishes each post at its time. `schedule_post` adds to the queue; the worker (`scheduler.py`) must be running for posts to actually go out.
 
