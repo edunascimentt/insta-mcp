@@ -259,6 +259,7 @@ async def reply_to_comment(
 # and DM tools. Imported for their @mcp.tool side effects.
 import tools_extra  # noqa: E402,F401
 import tools_dms  # noqa: E402,F401
+import tools_schedule  # noqa: E402,F401
 
 
 if __name__ == "__main__":

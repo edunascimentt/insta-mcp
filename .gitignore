@@ -1,6 +1,9 @@
 .env
 tokens.json
 mcp_config.json
+scheduled.json
+scheduled.json.tmp
+scheduler.log
 __pycache__/
 *.pyc
 .venv/
